@@ -7,8 +7,8 @@ package petroapp
 
 DISABLE_DOCKING :: #config(DISABLE_DOCKING, false)
 
-import "core:os"
-import "core:c"
+// import "core:os"
+// import "core:c"
 import "core:fmt"
 import "core:log"
 import "core:strings"
@@ -79,11 +79,15 @@ main :: proc() {
 
     las_file:         ls.LasData
     parsed_ok:        ls.ReadFileError
-    file_name_buffer: [1024]byte
-    loaded:           bool = false
-    font_scale: f32 = 1.0
-
     defer ls.delete_las_data(las_file)
+
+    file_name_buffer: [1024]byte
+
+    loaded:           bool = false
+    font_scale:       f32 = 1.0
+
+    log_table_cols := make(map[int]string, 0)
+    defer delete_map(log_table_cols)
 
 
     // las_panel: LAS_Panel
@@ -179,7 +183,7 @@ main :: proc() {
             if parsed_ok == nil || loaded {
 
                 n_rows := las_file.log_data.nrows
-                n_curves := las_file.log_data.ncurves
+                // n_curves := las_file.log_data.ncurves
                 // las_panel_render(&las_panel)
 
                 if im.BeginTabBar("Las Data") {
@@ -223,8 +227,8 @@ main :: proc() {
                         curve_info := &las_file.curve_info
                         im.Text(put_cstring_plain(fmt.tprintfln("Curve Information")))
                         im.Text(put_cstring_plain(fmt.tprintfln("\tCurve records: %v", curve_info.len)))
-                        for curve in curve_info.curves {
-                            im.Text(put_cstring_plain(fmt.tprintfln("\tCurve records: %v", curve)))
+                        for idx, curve in curve_info.curves {
+                            im.Text(put_cstring_plain(fmt.tprintfln("\tCurve records[%v]: %v", idx, curve)))
                         }
 
                         im.Separator()
@@ -236,12 +240,17 @@ main :: proc() {
                     if im.BeginTabItem("Log Data") {
                         if im.BeginTable(
                             "Log Data",
-                            cast(c.int)las_file.log_data.ncurves,
+                            las_file.log_data.ncurves,
                             flags_table, ) {
 
                             defer im.EndTable()
-                            for log, param in las_file.log_data.logs {
-                                im.TableSetupColumn(strings.unsafe_string_to_cstring(fmt.tprintfln( "%v", log)))
+                            count_col := 0
+                            for idx_col in 0..<las_file.log_data.ncurves {
+                                curve_item := las_file.curve_info.curves[cast(int)idx_col]
+                                im.TableSetupColumn(strings.unsafe_string_to_cstring(fmt.tprintfln( "%v", curve_item.descr)))
+                                // log_table_cols[count_col] = log
+                                count_col += 1
+                                // log.debugf("Curve item[%v]: %v", count_col, curve_item.descr)
                             }
                             im.TableHeadersRow()
 
@@ -249,12 +258,15 @@ main :: proc() {
                             // im.PushID("flags3")
                             // im.PushItemWidth(im.CalcTextSize("A").x * 30)
 
-                            for log, param in las_file.log_data.logs {
+                            for idx_col in 0..<count_col {
+                                curve := las_file.log_data.logs[idx_col]
+                                // log.debugf("Curve: %v", curve)
                                 im.TableNextColumn()
                                 for n_row in 0..<n_rows{
-                                    im.Text(strings.unsafe_string_to_cstring(fmt.tprintfln( "%#v", param[n_row])))
+                                    im.Text(strings.unsafe_string_to_cstring(fmt.tprintfln( "%#v", curve[n_row])))
                                 }
                             }
+
                         }
                         im.EndTabItem()
                     }
@@ -281,7 +293,7 @@ main :: proc() {
                             im.PlotLines(
                                 strings.unsafe_string_to_cstring(fmt.tprintfln( "%#v", log)),
                                 &dd[0],
-                                cast(i32)las_file.log_data.nrows,
+                                las_file.log_data.nrows,
                             )
                         }
 

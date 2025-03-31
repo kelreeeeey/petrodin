@@ -1,6 +1,6 @@
 package lasio
 
-import "base:runtime"
+// import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:io"
@@ -9,7 +9,7 @@ import "core:mem"
 import "core:math"
 import "core:strings"
 import "core:strconv"
-import "core:encoding/endian"
+// import "core:encoding/endian"
 
 ReadFileError :: union {
     OpenError,
@@ -37,7 +37,7 @@ ReaderReadByteError :: struct {
 ParseHeaderError :: struct {
     file_name: string,
     line:      string,
-    message:   string
+    message:   string,
 }
 
 FLAGS :: enum {
@@ -226,7 +226,7 @@ Note:
 parse_version_info :: proc(file_name: string, reader: ^bufio.Reader, allocator := context.allocator) -> (
     version_header: Version,
     next_line:      string,
-    err:            ReadFileError
+    err:            ReadFileError,
 ) {
 
     read_lines    := make([dynamic]string, 0, allocator=context.allocator)
@@ -277,7 +277,7 @@ parse_version_info :: proc(file_name: string, reader: ^bufio.Reader, allocator :
         count := 0
         for item in read_lines[1:] {
             if !strings.has_prefix(item, "~") {
-                mnemonic, unit, value, descr, ok := parse_las_line(item)
+                mnemonic, _, value, descr, _ := parse_las_line(item)
 
                 switch {
                 case strings.contains(mnemonic, "VERS"):
@@ -302,7 +302,7 @@ parse_version_info :: proc(file_name: string, reader: ^bufio.Reader, allocator :
                     adds := HeaderItem{
                         mnemonic= mnemonic,
                         value   = value,
-                        descr   = descr
+                        descr   = descr,
                     }
                     append(&additionals, adds)
                 }
@@ -324,14 +324,14 @@ parse_version_info :: proc(file_name: string, reader: ^bufio.Reader, allocator :
 parse_well_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: string, allocator := context.allocator) -> (
     well_info_header: WellInformation,
     next_line:        string,
-    err:              ReadFileError
+    err:              ReadFileError,
 ) {
 
     if !strings.has_prefix(prev_line, "~W") {
         return well_info_header, next_line, ParseHeaderError{
             file_name=file_name,
             line=prev_line,
-            message="Line is not a valid WELL INFORMATION section, cannot proceed to parse"
+            message="Line is not a valid WELL INFORMATION section, cannot proceed to parse",
         }
     }
 
@@ -375,11 +375,11 @@ parse_well_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: str
 
     { // assign all the read lines to `WellInformation` struct
 
-        additionals := make([dynamic]HeaderItem, 0, allocator=allocator)
+        // additionals := make([dynamic]HeaderItem, 0, allocator=allocator)
         for item in read_lines {
             if !strings.has_prefix(item, "#") && !strings.has_prefix(item, "~") {
 
-                mnemonic, unit, raw_value, descr, ok := parse_las_line(item)
+                mnemonic, unit, raw_value, descr, _ := parse_las_line(item)
                 switch {
 
                 case strings.contains(mnemonic, "STRT"):
@@ -523,14 +523,14 @@ parse_well_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: str
 parse_curve_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: string, allocator := context.allocator) -> (
     curves_info_header: CurveInformation,
     next_line:        string,
-    err:              ReadFileError
+    err:              ReadFileError,
 ) {
 
     if !strings.has_prefix(prev_line, "~C") {
         return curves_info_header, next_line, ParseHeaderError{
             file_name=file_name,
             line=prev_line,
-            message="Line is not a valid CURVES INFORMATION section, cannot proceed to parse"
+            message="Line is not a valid CURVES INFORMATION section, cannot proceed to parse",
         }
     }
 
@@ -574,8 +574,8 @@ parse_curve_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: st
 
     { // assign all the read lines to `CurveInformation` struct
 
-        count:i32 = 0
-        items     := make([dynamic]HeaderItem, 0, allocator=allocator)
+        count:int = 0
+        // items     := make_map(map[int]HeaderItem)//, 0, allocator=allocator)
 
         for _item in read_lines {
             item : string
@@ -586,15 +586,21 @@ parse_curve_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: st
             }
             if !strings.has_prefix(item, "#") && !strings.has_prefix(item, "~") {
                 header_item : HeaderItem
-                mnemonic, unit, value, descr, ok := parse_las_line(item)
+                mnemonic, unit, value, descr, _ := parse_las_line(item)
+
+                parsed_desc, _ := strings.split_n(descr, " ", 2)
 
                 header_item.mnemonic = mnemonic
                 header_item.unit     = unit
                 header_item.value    = value
-                header_item.descr    = descr
+                header_item.descr    = parsed_desc[1]
 
-                append(&items, header_item)
+                // append(&items, header_item)
+
+                idx := strconv.atoi(parsed_desc[0]) - 1
+                curves_info_header.curves[idx] = header_item
                 count += 1
+
 
             } else {
 
@@ -602,8 +608,7 @@ parse_curve_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: st
 
             }
         }
-        curves_info_header.len = count
-        curves_info_header.curves = items[:]
+        curves_info_header.len = cast(i32)count
 
     }
 
@@ -613,14 +618,14 @@ parse_curve_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: st
 parse_param_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: string, allocator := context.allocator) -> (
     params_info_header: ParameterInformation,
     next_line:          string,
-    err:                ReadFileError
+    err:                ReadFileError,
 ) {
 
     if !strings.has_prefix(prev_line, "~P") {
         return params_info_header, next_line, ParseHeaderError{
             file_name=file_name,
             line=prev_line,
-            message="Line is not a valid PARAMETERS INFORMATION section, cannot proceed to parse"
+            message="Line is not a valid PARAMETERS INFORMATION section, cannot proceed to parse",
         }
     }
 
@@ -670,7 +675,7 @@ parse_param_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: st
         for item in read_lines {
             if !strings.has_prefix(item, "#") && !strings.has_prefix(item, "~") {
                 header_item : HeaderItem
-                mnemonic, unit, raw_value, descr, ok := parse_las_line(item)
+                mnemonic, unit, raw_value, descr, _ := parse_las_line(item)
 
                 // NOTE: Check if the strings should be a numeric value or
                 // just a plain ahh string.
@@ -705,7 +710,7 @@ parse_param_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: st
 parse_other_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: string, allocator := context.allocator) -> (
     others_info_header: OtherInformation,
     next_line:          string,
-    err:                ReadFileError
+    err:                ReadFileError,
 ) {
 
     if !strings.contains(prev_line, "~O") {
@@ -713,7 +718,7 @@ parse_other_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: st
         return others_info_header, next_line, ParseHeaderError{
             file_name=file_name,
             line=prev_line,
-            message="Line is not a valid OTHERS INFORMATION section, cannot proceed to parse"
+            message="Line is not a valid OTHERS INFORMATION section, cannot proceed to parse",
         }
     }
 
@@ -780,164 +785,164 @@ parse_other_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: st
 }
 
 parse_ascii_log_info :: proc(
-	file_name:      string,
-	reader:         ^bufio.Reader,
-	prev_line:      string,
-	version_header: Version,
-	well_info:      WellInformation,
-	curve_header:   CurveInformation,
-	allocator:=     context.allocator) -> (
+    file_name:      string,
+    reader:         ^bufio.Reader,
+    prev_line:      string,
+    version_header: Version,
+    well_info:      WellInformation,
+    curve_header:   CurveInformation,
+    allocator:=     context.allocator) -> (
 
-	ascii_data:     LogData,
-	next_line:      string,
-	err:            ReadFileError
+    ascii_data:     LogData,
+    next_line:      string,
+    err:            ReadFileError,
 
 ) {
 
-	ascii_data.wrap = version_header.wrap.value.(bool)
-	// if ascii_data.wrap {
-	// 	return ascii_data, next_line, ParseHeaderError{
-	// 		file_name=file_name,
-	// 		line=prev_line,
-	// 		message="Wraped format is not currently supported, on Dev :D tho"
-	// 	}
-	// }
+    ascii_data.wrap = version_header.wrap.value.(bool)
+    // if ascii_data.wrap {
+    //     return ascii_data, next_line, ParseHeaderError{
+    //         file_name=file_name,
+    //         line=prev_line,
+    //         message="Wraped format is not currently supported, on Dev :D tho"
+    //     }
+    // }
 
-	if !strings.has_prefix(prev_line, "~A") {
-		return ascii_data, next_line, ParseHeaderError{
-			file_name=file_name,
-			line=prev_line,
-			message="Line is not a valid ASCII LOG DATA section, cannot proceed to parse"
-		}
-	}
+    if !strings.has_prefix(prev_line, "~A") {
+        return ascii_data, next_line, ParseHeaderError{
+            file_name=file_name,
+            line=prev_line,
+            message="Line is not a valid ASCII LOG DATA section, cannot proceed to parse",
+        }
+    }
 
-	read_lines    := make([dynamic]string, 0, allocator=context.allocator)
-	defer delete(read_lines)
+    read_lines    := make([dynamic]string, 0, allocator=context.allocator)
+    defer delete(read_lines)
 
-	count_section := 1
-	count_line    := 0
-	for {
+    count_section := 1
+    count_line    := 0
+    for {
 
-		raw_line, read_bytes_err := bufio.reader_read_string(reader, '\n', allocator=allocator)
-		if read_bytes_err == os.ERROR_EOF {
-			break
+        raw_line, read_bytes_err := bufio.reader_read_string(reader, '\n', allocator=allocator)
+        if read_bytes_err == os.ERROR_EOF {
+            break
 
-		} else if read_bytes_err != nil {
+        } else if read_bytes_err != nil {
 
-			return ascii_data, next_line, ReaderReadByteError{file_name=file_name, reader=reader^}
+            return ascii_data, next_line, ReaderReadByteError{file_name=file_name, reader=reader^}
 
-		} else {
+        } else {
 
-			if strings.contains(raw_line, "~") { count_section += 1 }
+            if strings.contains(raw_line, "~") { count_section += 1 }
 
-			len_line := len(raw_line)-1
-			if count_line == 0 {
-				append(&read_lines, raw_line[:len_line])
-			} else {
-				append(&read_lines, raw_line[:len_line])
-			}
+            len_line := len(raw_line)-1
+            if count_line == 0 {
+                append(&read_lines, raw_line[:len_line])
+            } else {
+                append(&read_lines, raw_line[:len_line])
+            }
 
-			count_line += 1
-		}
+            count_line += 1
+        }
 
-	}
+    }
 
-	n_curve_int:       = cast(int)curve_header.len
-	n_curve_non_first := n_curve_int-1
-	ascii_data.ncurves = curve_header.len
+    n_curve_int:       = cast(int)curve_header.len
+    // n_curve_non_first := n_curve_int-1
+    ascii_data.ncurves = curve_header.len
 
-	{ // assign all the read lines to `LogData` struct
+    { // assign all the read lines to `LogData` struct
 
-		count:i32 = 0
-		items     := make_map(map[string][]f64, allocator=allocator)
-		container := make([][dynamic]f64, n_curve_int, allocator=allocator)
-		// defer {
-		// 	for c in container do delete(c)
-		// 	delete(container)
-		// }
+        count:i32 = 0
+        items     := make_map(map[int][]f64, allocator=allocator)
+        container := make([][dynamic]f64, n_curve_int, allocator=allocator)
 
-		if !ascii_data.wrap { // if it is not a wrapped version
-			for item in read_lines {
-				if strings.has_prefix(item, "#") do continue
+        if !ascii_data.wrap { // if it is not a wrapped version
+            for item in read_lines {
+                if strings.has_prefix(item, "#") do continue
 
-				datum_points := parse_datum_points(item, n_curve_int)
+                datum_points := parse_datum_points(item)
+                // fmt.printfln("Datum points %v", datum_points)
 
-				for curve_idx in 0..<n_curve_int {
-					point := strconv.atof(datum_points[curve_idx])
-					if point == well_info.null.value {
-						append(&(container[curve_idx]), math.nan_f64())
-					} else {
-						append(&(container[curve_idx]), point)
-					}
-				}
+                for curve_idx in 0..<n_curve_int {
+                    point := strconv.atof(datum_points[curve_idx])
+                    if point == well_info.null.value {
+                        append(&(container[curve_idx]), math.nan_f64())
+                    } else {
+                        append(&(container[curve_idx]), point)
+                    }
+                }
 
-				count += 1
-			}
-		} else { // it is a wrapped version
+                count += 1
+                // fmt.printfln("Length container: %v", len(container))
+            }
 
-			point:      f64
-			is_first:   bool
+        } else { // it is a wrapped version
 
-			inner_count: = 1
+            point:      f64
+            is_first:   bool
 
-			for item in read_lines {
+            inner_count: = 1
 
-				datum_points     := parse_datum_points(item)
-				sub_curve_length := len(datum_points)
+            for item in read_lines {
 
-				// setting the flag
-				if sub_curve_length == 1 {
+                datum_points     := parse_datum_points(item)
+                sub_curve_length := len(datum_points)
 
-					is_first    = true
-					point = strconv.atof(datum_points[0])
-					append(&container[0], point)
-					count += 1
+                // setting the flag
+                if sub_curve_length == 1 {
 
-				} else {
+                    is_first    = true
+                    point = strconv.atof(datum_points[0])
+                    append(&container[0], point)
+                    count += 1
 
-					is_first          = false
-					sub_curve_idx    := 0
+                } else {
 
-					for curve_idx in sub_curve_idx..<sub_curve_length {
+                    is_first          = false
+                    sub_curve_idx    := 0
 
-						point := strconv.atof(datum_points[curve_idx])
+                    for curve_idx in sub_curve_idx..<sub_curve_length {
 
-						if point == well_info.null.value {
+                        point = strconv.atof(datum_points[curve_idx])
 
-							append(&(container[curve_idx+inner_count]), math.nan_f64())
-							// fmt.printfln("IDX: %v --> nan point: %v", curve_idx, point)
+                        if point == well_info.null.value {
 
-						} else {
+                            append(&(container[curve_idx+inner_count]), math.nan_f64())
+                            // fmt.printfln("IDX: %v --> nan point: %v", curve_idx, point)
 
-							append(&(container[curve_idx+inner_count]), point)
-							// fmt.printfln("IDX: %v --> point: %v", curve_idx, point)
+                        } else {
 
-
-						}
-					}
-
-				}
-				
-				if !is_first { inner_count += sub_curve_length }
-				else         { inner_count  = 1 }
-				// fmt.printfln("LINE: %v", item)
-
-			}
-
-		}
-
-		for idx in 0..<n_curve_int {
-			curve_name := curve_header.curves[idx].mnemonic
-			items[curve_name] = container[idx][:]
-		}
-
-		ascii_data.nrows = count
-		ascii_data.logs  = items
-
-	}
+                            append(&(container[curve_idx+inner_count]), point)
+                            // fmt.printfln("IDX: %v --> point: %v", curve_idx, point)
 
 
-	return ascii_data, next_line, nil
+                        }
+                    }
+
+                }
+
+                if !is_first { inner_count += sub_curve_length }
+                else         { inner_count  = 1 }
+                // fmt.printfln("LINE: %v", item)
+
+            }
+
+        }
+
+        for idx in 0..<n_curve_int {
+            // curve_name := curve_header.curves[idx].mnemonic
+            // fmt.printfln("Curve name: %v | %v", curve_name, container[idx][:5])
+            items[idx] = container[idx][:]
+        }
+
+        ascii_data.nrows = count
+        ascii_data.logs  = items
+
+    }
+
+
+    return ascii_data, next_line, nil
 }
 
 parse_datum_points_no_wrapped :: proc(ascii_log_line: string) -> []string {
@@ -961,15 +966,15 @@ parse_datum_points_wrapped :: proc(ascii_log_line: string, n_curve_int: int) -> 
         if datum != "" {
             append(&datum_points, datum)
         } else {
-			append(&datum_points, "")
-		}
+            append(&datum_points, "")
+        }
     }
 
     return datum_points[:]
 }
 
 parse_datum_points :: proc {
-	parse_datum_points_no_wrapped,
-	parse_datum_points_wrapped,
+    parse_datum_points_no_wrapped,
+    parse_datum_points_wrapped,
 }
 

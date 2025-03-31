@@ -28,6 +28,7 @@ tasks:
     deps:
       - build_lasloading
     cmds:
+      - ./bin/lasloading.exe ./test-data/15-9-19_SR_COMP.LAS
       - ./bin/lasloading.exe ./test-data/15-LASFiles/L0506_comp.las
       - ./bin/lasloading.exe ./test-data/15-LASFiles/L0507_comp.las
       - ./bin/lasloading.exe ./test-data/15-LASFiles/L0509_comp.las

@@ -18,7 +18,7 @@ ItemValues :: union {
 Version :: struct #packed {
     vers: HeaderItem,
     wrap: HeaderItem,
-    add:  []HeaderItem
+    add:  []HeaderItem,
 }
 
 WellInformation :: struct #packed {
@@ -44,17 +44,17 @@ WellInformation :: struct #packed {
 // Curves
 CurveInformation :: struct #packed {
     len:    i32,
-    curves: []HeaderItem
+    curves: map[int]HeaderItem,
 }
 
 delete_curve_info :: proc(curve_info: CurveInformation) {
-	delete(curve_info.curves)
+	delete_map(curve_info.curves)
 }
 
 // Parameter informations, non-mandatory
 ParameterInformation :: struct {
     len:    i32,
-    params: []HeaderItem
+    params: []HeaderItem,
 }
 
 delete_param_info :: proc(param_info: ParameterInformation) {
@@ -64,7 +64,7 @@ delete_param_info :: proc(param_info: ParameterInformation) {
 // Other informations, non-mandatory
 OtherInformation :: struct {
     len:  i32,
-    info: []string
+    info: []string,
 }
 
 delete_other_info :: proc(other_info: OtherInformation) {
@@ -76,7 +76,7 @@ LogData :: struct {
     wrap:    bool,
     nrows:   i32,
     ncurves: i32,
-    logs:    map[string][]f64
+    logs:    map[int][]f64,
 }
 
 delete_log_data :: proc(log_data: LogData) {
@@ -92,7 +92,7 @@ SectionType :: union {
     ParameterInformation,
     OtherInformation,
     LogData,
-    []string
+    []string,
 }
 
 SectionFlags :: enum {
@@ -109,7 +109,7 @@ SectionFlags :: enum {
 Section :: struct {
     name:  string,
     flag:  SectionFlags,
-    items: SectionType
+    items: SectionType,
 }
 
 LasData :: struct {
@@ -119,14 +119,14 @@ LasData :: struct {
     curve_info:     CurveInformation,
     parameter_info: ParameterInformation,
     other_info:     OtherInformation,
-    log_data:       LogData
+    log_data:       LogData,
 }
 
 delete_las_data :: proc(las_data: LasData) {
 	delete(las_data.version.add)
 	delete_curve_info(las_data.curve_info)
 	delete_other_info(las_data.other_info)
-	for curve_name, log in las_data.log_data.logs {
+	for _, log in las_data.log_data.logs {
 		delete(log)
 	}
 }

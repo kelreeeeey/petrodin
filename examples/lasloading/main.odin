@@ -1,7 +1,6 @@
 package lasload
 
 import "core:fmt"
-import "core:math"
 import "core:os"
 import ls "shared:lasio"
 
@@ -20,7 +19,7 @@ main :: proc() {
     curve_info : ^ls.CurveInformation
     log_data   : ^ls.LogData
 
-    idx:=-1
+    // idx:=-1
 
     { // version
         fmt.println("\tVersion:")
@@ -51,8 +50,8 @@ main :: proc() {
     { // curve informations
         curve_info = &las_file.curve_info
         fmt.printfln("\tCurve records: %v", curve_info.len)
-        for curve in curve_info.curves {
-            fmt.printfln("\t%v", curve)
+        for idx, curve in curve_info.curves {
+            fmt.printfln("\t[%v]==> %v", idx, curve)
         }
     }
 
