@@ -1,0 +1,55 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  GREETING: Hello, World!
+
+tasks:
+  default:
+    cmds:
+      - echo "{{.GREETING}}"
+    silent: true
+
+  build_lasloading:
+    cmds:
+      - odin build ./examples/lasloading -out:./bin/lasloading.exe
+    silent: false
+    method: none
+    aliases:
+      - blas
+    generates:
+      - ./bin/lasloading.exe
+    sources:
+      - ./examples/lasloading/
+      # - ../../lasio-odin/lasio-odin/lasio/*.odin
+
+  lasloading:
+    deps:
+      - build_lasloading
+    cmds:
+      - ./bin/lasloading.exe ./test-data/15-LASFiles/L0506_comp.las
+      - ./bin/lasloading.exe ./test-data/15-LASFiles/L0507_comp.las
+      - ./bin/lasloading.exe ./test-data/15-LASFiles/L0509_comp.las
+    silent: false
+    method: none
+    aliases:
+      - rlas
+
+  build_petroimgui:
+    cmds:
+      - odin build ./petroapp -out:./bin/petroapp.exe
+    silent: false
+    method: none
+    aliases:
+      - bpet
+
+  petroimgui:
+    deps:
+      - build_petroimgui
+    cmds:
+      - ./bin/petroapp.exe
+    silent: false
+    method: none
+    aliases:
+      - rpet
