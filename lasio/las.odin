@@ -579,35 +579,33 @@ parse_curve_info :: proc(file_name: string, reader: ^bufio.Reader, prev_line: st
 
         for _item in read_lines {
             item : string
-            if strings.has_prefix(_item, "\n") {
-                item = _item[1:]
-            } else {
-                item = _item
-            }
-            if !strings.has_prefix(item, "#") && !strings.has_prefix(item, "~") {
-                header_item : HeaderItem
-                mnemonic, unit, value, descr, _ := parse_las_line(item)
+            is_prefix_newline: bool      = strings.has_prefix(_item, "\n")
+            if is_prefix_newline do item = _item[1:]
+            else                 do item = _item
 
-                parsed_desc, _ := strings.split_n(descr, " ", 2)
+            // if strings.has_prefix(_item, "\n") { item = _item[1:] }
+            // else { item = _item }
 
-                header_item.mnemonic = mnemonic
-                header_item.unit     = unit
-                header_item.value    = value
-                header_item.descr    = parsed_desc[1]
+            is_comment_or_section: bool = strings.has_prefix(item, "#") || strings.has_prefix(item, "~")
+            // is_comment_or_section: bool = strings.has_prefix(item, "#") && strings.has_prefix(item, "~")
+            if is_comment_or_section do continue
 
-                // append(&items, header_item)
+            header_item : HeaderItem
+            mnemonic, unit, value, descr, _ := parse_las_line(item)
 
-                idx := strconv.atoi(parsed_desc[0]) - 1
-                curves_info_header.curves[idx] = header_item
-                count += 1
+            parsed_desc, _ := strings.split_n(descr, " ", 2)
 
+            header_item.mnemonic = mnemonic
+            header_item.unit     = unit
+            header_item.value    = value
+            header_item.descr    = parsed_desc[1]
 
-            } else {
+            curves_info_header.curves[count] = header_item
 
-                continue
+            count += 1
 
-            }
         }
+
         curves_info_header.len = cast(i32)count
 
     }

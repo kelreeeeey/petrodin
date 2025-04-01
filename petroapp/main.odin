@@ -5,7 +5,7 @@ package petroapp
 // https://github.com/ocornut/imgui/blob/docking/examples/example_glfw_opengl3/main.cpp
 // Based on the above at tag `v1.91.1-docking` (d8c98c)
 
-DISABLE_DOCKING :: #config(DISABLE_DOCKING, false)
+DISABLE_DOCKING :: #config(DISABLE_DOCKING, true)
 
 // import "core:os"
 // import "core:c"
@@ -248,55 +248,184 @@ main :: proc() {
                             for idx_col in 0..<las_file.log_data.ncurves {
                                 curve_item := las_file.curve_info.curves[cast(int)idx_col]
                                 im.TableSetupColumn(strings.unsafe_string_to_cstring(fmt.tprintfln( "%v", curve_item.descr)))
-                                // log_table_cols[count_col] = log
                                 count_col += 1
-                                // log.debugf("Curve item[%v]: %v", count_col, curve_item.descr)
                             }
                             im.TableHeadersRow()
 
-                            // inner_width: f32 = 1000.0
-                            // im.PushID("flags3")
-                            // im.PushItemWidth(im.CalcTextSize("A").x * 30)
+                            // thx deepseek, even your code was lil bit wrong, but ok
+                            n_lines_to_render :: 200  // Number of visible lines
+                            start_line:  i32          // First visible line index
+                            curr_scroll: f32          // Current scroll position
+                            prev_scroll: f32          // Previous scroll position (for delta)
 
-                            for idx_col in 0..<count_col {
-                                curve := las_file.log_data.logs[idx_col]
-                                // log.debugf("Curve: %v", curve)
-                                im.TableNextColumn()
-                                for n_row in 0..<n_rows{
-                                    im.Text(strings.unsafe_string_to_cstring(fmt.tprintfln( "%#v", curve[n_row])))
+                            curr_scroll = im.GetScrollY()
+                            prev_scroll = curr_scroll
+
+                            total_lines := n_rows
+                            line_height := im.GetTextLineHeightWithSpacing()
+                            visible_lines := cast(i32)(im.GetWindowHeight() / line_height)
+
+                            // Update start_line based on scroll position
+                            start_line = cast(i32)(curr_scroll / line_height)
+                            start_line = max(0, start_line - 5)  // 5-line buffer above
+                            end_line := min(total_lines, start_line + visible_lines + 10)
+
+                            // Use ListClipper for efficient rendering
+                            clipper := im.ListClipper{}
+                            im.ListClipper_Begin(&clipper, total_lines, line_height)
+                            defer im.ListClipper_End(&clipper)
+
+                            // stepping
+                            for im.ListClipper_Step(&clipper) {
+                                    for row in clipper.DisplayStart..<clipper.DisplayEnd {
+                                        im.TableNextRow()
+
+                                        for idx_col in 0..<count_col {
+                                            im.TableNextColumn()
+                                            curve := las_file.log_data.logs[idx_col]
+
+                                            // Only render visible lines
+                                            if row >= start_line && row < end_line {
+                                                im.Text("%.2f", curve[row])
+                                            } else {
+                                                im.Text("")  // Empty space for non-visible lines
+                                            }
+                                        }
+                                    }
                                 }
-                            }
+
+                            // for idx_col in 0..<count_col {
+                            //
+                            //     curve := las_file.log_data.logs[idx_col]
+                            //     im.TableNextColumn()
+                            //
+                            //     curr_scroll = cast(i32)im.GetScrollY()
+                            //     max_scroll := cast(i32)im.GetScrollMaxY()
+                            //     if curr_scroll < max_scroll {
+                            //
+                            //         log.debugf("[TRUE ] %v, %v, %v, %v", curr_scroll, im.GetScrollMaxY(), start_line, max_lines)
+                            //
+                            //     } else {
+                            //
+                            //         max_lines  += 400
+                            //         start_line += 200
+                            //         curr_scroll = 0
+                            //         log.debugf("[FALSE]%v, %v, %v, %v", curr_scroll, im.GetScrollMaxY(), start_line, max_lines)
+                            //
+                            //     }
+                            //
+                            //     max_line_idx = min(n_rows, max_lines)
+                            //     min_line_idx = max_line_idx - n_lines_to_render
+                            //
+                            //     for n_row in min_line_idx..<max_line_idx{
+                            //         im.Text("%.4f", curve[n_row])
+                            //     }
+                            //
+                            // }
 
                         }
                         im.EndTabItem()
                     }
 
+
                     if im.BeginTabItem("Plot Log") {
 
-                        // if im.BeginTable(
-                        //     "Log Data",
-                        //     cast(c.int)las_file.log_data.ncurves,
-                        //     flags_table, ) {
-                        //
+                        for idx in 0..<len(las_file.curve_info.curves){
+                            plot1 := las_file.curve_info.curves[idx]
+                            data:= transmute([]f32)(las_file.log_data.logs[idx])
+                            im.PlotLines(
+                                strings.unsafe_string_to_cstring(plot1.mnemonic),
+                                &data[0],
+                                cast(i32)len(data),
+                                graph_size={1000,100},
+                                scale_min=-100.0,
+                                scale_max=500.0)
+                            im.Separator()
+                        }
+
+                        // if im.BeginTable("Log Data", las_file.log_data.ncurves, flags_table) {
                         //     defer im.EndTable()
-                        //     for log, param in las_file.log_data.logs {
-                        //         im.TableSetupColumn(strings.unsafe_string_to_cstring(fmt.tprintfln( "%v", log)))
+                        //
+                        //     // Setup columns
+                        //     count_col := 0
+                        //     for idx_col in 0..<las_file.log_data.ncurves {
+                        //         curve_item := las_file.curve_info.curves[cast(int)idx_col]
+                        //         im.TableSetupColumn(strings.unsafe_string_to_cstring(fmt.tprintfln("%v", curve_item.descr)))
+                        //         count_col += 1
                         //     }
                         //     im.TableHeadersRow()
                         //
-                        //     // inner_width: f32 = 1000.0
-                        //     // im.PushID("flags3")
-                        //     // im.PushItemWidth(im.CalcTextSize("A").x * 30)
+                        //     // Plot parameters
+                        //     cell_padding :f32= 4.0
+                        //     max_value : f32 = 100.0  // Adjust based on your data range
+                        //     bar_width_ratio :: 0.1    // 70% of column width
                         //
-                        for log, param in las_file.log_data.logs {
-                            dd := transmute([]f32)param
-                            im.PlotLines(
-                                strings.unsafe_string_to_cstring(fmt.tprintfln( "%#v", log)),
-                                &dd[0],
-                                las_file.log_data.nrows,
-                            )
-                        }
-
+                        //     // Draw rows
+                        //     for row in 0..<n_rows-1 {
+                        //         im.TableNextRow()
+                        //
+                        //         for idx_col in 0..<count_col {
+                        //             im.TableNextColumn()
+                        //
+                        //             // Get data value
+                        //             value := cast(f32)las_file.log_data.logs[idx_col][row]
+                        //             value_2 := cast(f32)las_file.log_data.logs[idx_col][row+1]
+                        //
+                        //             // Get drawing context
+                        //             draw_list := im.GetWindowDrawList()
+                        //             pos := im.GetCursorScreenPos()
+                        //             size := im.GetContentRegionAvail()
+                        //
+                        //             // Calculate bar dimensions
+                        //             bar_height := (value / max_value) * (size.y - cell_padding * 2)
+                        //             bar_height = clamp(bar_height, 0, size.y - cell_padding * 2)
+                        //             bar_width := size.x * bar_width_ratio
+                        //
+                        //             // Draw background
+                        //             im.DrawList_AddRectFilled(
+                        //                 draw_list,
+                        //                 pos + {0, cell_padding},
+                        //                 pos + size,
+                        //                 im.GetColorU32(im.Col.TableRowBg),
+                        //             )
+                        //
+                        //             // Draw vertical bar
+                        //             bar_pos := pos + {
+                        //                 (size.x - bar_width) / 2,  // Center horizontally
+                        //                 size.y - bar_height - cell_padding, // Align to bottom,
+                        //             }
+                        //
+                        //             im.DrawList_AddLine(
+                        //                 draw_list,
+                        //                 (size.x - bar_width) / 2,  // Center horizontally
+                        //                 size.y - bar_height - cell_padding, // Align to bottom,
+                        //                 // im.Vec2{value, cast(f32)row},
+                        //                 // im.Vec2{value_2, cast(f32)row+1},
+                        //                 1,
+                        //                 1,
+                        //
+                        //             )
+                        //
+                        //             im.DrawList_AddRectFilled(
+                        //                 draw_list,
+                        //                 bar_pos,
+                        //                 bar_pos + {bar_width, bar_height},
+                        //                 im.GetColorU32(im.Col.PlotLines),
+                        //             )
+                        //
+                        //             // // Draw value text
+                        //             // if bar_height > 15 {
+                        //             //     text_pos := bar_pos + {2, bar_height - 15}
+                        //             //     im.DrawList_AddText(
+                        //             //         draw_list,
+                        //             //         text_pos,
+                        //             //         im.GetColorU32(im.Col.Text),
+                        //             //         strings.unsafe_string_to_cstring(fmt.tprintf("%.2f", value)),
+                        //             //     )
+                        //             // }
+                        //         }
+                        //     }
+                        // }
                         im.EndTabItem()
                     }
 
