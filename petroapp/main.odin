@@ -5,20 +5,24 @@ package petroapp
 // https://github.com/ocornut/imgui/blob/docking/examples/example_glfw_opengl3/main.cpp
 // Based on the above at tag `v1.91.1-docking` (d8c98c)
 
-DISABLE_DOCKING :: #config(DISABLE_DOCKING, true)
+DISABLE_DOCKING :: #config(DISABLE_DOCKING, false)
 
 // import "core:os"
 // import "core:c"
+
 import "core:fmt"
 import "core:log"
 import "core:strings"
+import rl "vendor:raylib"
 import im "shared:imgui"
-import "shared:imgui/imgui_impl_glfw"
-import "shared:imgui/imgui_impl_opengl3"
-
-import "vendor:glfw"
-import gl "vendor:OpenGL"
+import imrl "shared:imgui-raylib"
 import ls "../lasio"
+
+// import "shared:imgui/imgui_impl_glfw"
+// import "shared:imgui/imgui_impl_opengl3"
+
+// import "vendor:glfw"
+// import gl "vendor:OpenGL"
 
 put_cstring_plain :: proc(item: any) -> cstring {
     return strings.unsafe_string_to_cstring(fmt.tprintf("%v", item))
@@ -31,51 +35,27 @@ put_cstring_hash :: proc(item: any, hash: bool=true) -> cstring {
 put_cstring :: proc { put_cstring_plain, put_cstring_hash }
 
 main :: proc() {
-    context.logger = log.create_console_logger()
-    log.debug("Well!")
+    rl.SetConfigFlags({.MSAA_4X_HINT, .WINDOW_RESIZABLE})
+    rl.InitWindow(1900, 1000, "PetroApp")
+    defer rl.CloseWindow()
 
-    assert(cast(bool)glfw.Init())
-    defer glfw.Terminate()
-
-    glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3)
-    glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, 2)
-    glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-    glfw.WindowHint(glfw.OPENGL_FORWARD_COMPAT, 1) // i32(true)
-
-    window := glfw.CreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL3 example", nil, nil)
-    assert(window != nil)
-    defer glfw.DestroyWindow(window)
-
-    glfw.MakeContextCurrent(window)
-    glfw.SwapInterval(2) // vsync
-
-    gl.load_up_to(3, 2, proc(p: rawptr, name: cstring) {
-        (cast(^rawptr)p)^ = glfw.GetProcAddress(name)
-    })
-
-    im.CHECKVERSION()
-    im.CreateContext()
-    defer im.DestroyContext()
-    io := im.GetIO()
-    io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad}
-    when !DISABLE_DOCKING {
-        io.ConfigFlags += {.DockingEnable}
-        io.ConfigFlags += {.ViewportsEnable}
-
-        style := im.GetStyle()
-        style.WindowRounding = 0
-        style.Colors[im.Col.WindowBg].w = 1
-    }
-
-    im.StyleColorsDark()
-
-    imgui_impl_glfw.InitForOpenGL(window, true)
-    defer imgui_impl_glfw.Shutdown()
-    imgui_impl_opengl3.Init("#version 150")
-    defer imgui_impl_opengl3.Shutdown()
-
-    // here all the panels and data go.
-    // file_name: string = os.args[1]
+// // Camera type, defines a camera position/orientation in 3d space
+// Camera3D :: struct {
+// 	position: Vector3,            // Camera position
+// 	target:   Vector3,            // Camera target it looks-at
+// 	up:       Vector3,            // Camera up vector (rotation over its axis)
+// 	fovy:     f32,                // Camera field-of-view apperture in Y (degrees) in perspective, used as near plane width in orthographic
+// 	projection: CameraProjection, // Camera projection: CAMERA_PERSPECTIVE or CAMERA_ORTHOGRAPHIC
+// }
+// //
+//     camera := rl.Camera3D{
+//         position={1, 10, 10},
+//         target={0,100,0},
+//         up={0,0,0},
+//         fovy=30,
+//         projection=.ORTHOGRAPHIC,
+//     }
+//     cameraMode: rl.CameraMode = .CUSTOM
 
     las_file:         ls.LasData
     parsed_ok:        ls.ReadFileError
@@ -89,26 +69,27 @@ main :: proc() {
     log_table_cols := make(map[int]string, 0)
     defer delete_map(log_table_cols)
 
+    im.CreateContext(nil)
+    defer im.DestroyContext(nil)
 
-    // las_panel: LAS_Panel
-    // las_panel_init(&las_panel, &las_file, "LAS Panel")
+    imrl.init_imguirl()
+    defer imrl.shutdown_imguirl()
+    imrl.imguirl_build_font_atlas()
+
+    for !rl.WindowShouldClose() {
 
 
-    for !glfw.WindowShouldClose(window) {
-        glfw.PollEvents()
+        // rl.UpdateCamera(&camera, cameraMode)
+        imrl.process_events_imguirl()
+        imrl.new_frame_imguirl()
 
-        imgui_impl_opengl3.NewFrame()
-        imgui_impl_glfw.NewFrame()
         im.NewFrame()
+        defer im.EndFrame()
 
-        // ui code
+        rl.BeginDrawing()
+        rl.ClearBackground(rl.RAYWHITE)
 
-        // viewport := im.GetMainViewport()
-        // im.SetNextWindowPos({0,0}, .Appearing)
-        // im.SetNextWindowSize(viewport.Size, .Appearing)
-
-        im.ShowDemoWindow()
-        if im.Begin("LAS File Loader", nil, {.NoCollapse, .MenuBar}) {
+        if im.Begin("LAS File Loader", nil, {.NoTitleBar, .MenuBar}) {
             defer im.End()
 
             // Setup
@@ -139,12 +120,12 @@ main :: proc() {
                 {.EnterReturnsTrue},
             ) {
                 if im.IsKeyPressed(.Enter) {
-                    las_file, parsed_ok = ls.load_las(
+
+                    if las_file, parsed_ok = ls.load_las(
                         string(file_name_buffer[:]),
                         2016,
-                        allocator=context.allocator)
-                    if parsed_ok == nil {
-                        // las_panel_render(&las_panel)
+                        allocator=context.allocator,
+                    ); parsed_ok == nil {
                         im.Text(put_cstring_plain(las_file.version.vers))
                         im.Text(put_cstring_plain(las_file.version.wrap))
                         im.Text(put_cstring(las_file.well_info, true))
@@ -163,11 +144,10 @@ main :: proc() {
             cursor_x := im.GetCursorPosX()
             im.SetCursorPosX(cursor_x + avail.x / 2)
             if im.Button("Load") {
-                las_file, parsed_ok = ls.load_las(
+                if las_file, parsed_ok = ls.load_las(
                     string(file_name_buffer[:]),
                     2016,
-                    allocator=context.allocator)
-                if parsed_ok == nil {
+                    allocator=context.allocator); parsed_ok == nil {
                     // las_panel_render(&las_panel)
                     im.Text(put_cstring_plain(las_file.version.vers))
                     im.Text(put_cstring_plain(las_file.version.wrap))
@@ -293,142 +273,9 @@ main :: proc() {
                                         }
                                     }
                                 }
-
-                            // for idx_col in 0..<count_col {
-                            //
-                            //     curve := las_file.log_data.logs[idx_col]
-                            //     im.TableNextColumn()
-                            //
-                            //     curr_scroll = cast(i32)im.GetScrollY()
-                            //     max_scroll := cast(i32)im.GetScrollMaxY()
-                            //     if curr_scroll < max_scroll {
-                            //
-                            //         log.debugf("[TRUE ] %v, %v, %v, %v", curr_scroll, im.GetScrollMaxY(), start_line, max_lines)
-                            //
-                            //     } else {
-                            //
-                            //         max_lines  += 400
-                            //         start_line += 200
-                            //         curr_scroll = 0
-                            //         log.debugf("[FALSE]%v, %v, %v, %v", curr_scroll, im.GetScrollMaxY(), start_line, max_lines)
-                            //
-                            //     }
-                            //
-                            //     max_line_idx = min(n_rows, max_lines)
-                            //     min_line_idx = max_line_idx - n_lines_to_render
-                            //
-                            //     for n_row in min_line_idx..<max_line_idx{
-                            //         im.Text("%.4f", curve[n_row])
-                            //     }
-                            //
-                            // }
-
                         }
                         im.EndTabItem()
                     }
-
-
-                    if im.BeginTabItem("Plot Log") {
-
-                        for idx in 0..<len(las_file.curve_info.curves){
-                            plot1 := las_file.curve_info.curves[idx]
-                            data:= transmute([]f32)(las_file.log_data.logs[idx])
-                            im.PlotLines(
-                                strings.unsafe_string_to_cstring(plot1.mnemonic),
-                                &data[0],
-                                cast(i32)len(data),
-                                graph_size={1000,100},
-                                scale_min=-100.0,
-                                scale_max=500.0)
-                            im.Separator()
-                        }
-
-                        // if im.BeginTable("Log Data", las_file.log_data.ncurves, flags_table) {
-                        //     defer im.EndTable()
-                        //
-                        //     // Setup columns
-                        //     count_col := 0
-                        //     for idx_col in 0..<las_file.log_data.ncurves {
-                        //         curve_item := las_file.curve_info.curves[cast(int)idx_col]
-                        //         im.TableSetupColumn(strings.unsafe_string_to_cstring(fmt.tprintfln("%v", curve_item.descr)))
-                        //         count_col += 1
-                        //     }
-                        //     im.TableHeadersRow()
-                        //
-                        //     // Plot parameters
-                        //     cell_padding :f32= 4.0
-                        //     max_value : f32 = 100.0  // Adjust based on your data range
-                        //     bar_width_ratio :: 0.1    // 70% of column width
-                        //
-                        //     // Draw rows
-                        //     for row in 0..<n_rows-1 {
-                        //         im.TableNextRow()
-                        //
-                        //         for idx_col in 0..<count_col {
-                        //             im.TableNextColumn()
-                        //
-                        //             // Get data value
-                        //             value := cast(f32)las_file.log_data.logs[idx_col][row]
-                        //             value_2 := cast(f32)las_file.log_data.logs[idx_col][row+1]
-                        //
-                        //             // Get drawing context
-                        //             draw_list := im.GetWindowDrawList()
-                        //             pos := im.GetCursorScreenPos()
-                        //             size := im.GetContentRegionAvail()
-                        //
-                        //             // Calculate bar dimensions
-                        //             bar_height := (value / max_value) * (size.y - cell_padding * 2)
-                        //             bar_height = clamp(bar_height, 0, size.y - cell_padding * 2)
-                        //             bar_width := size.x * bar_width_ratio
-                        //
-                        //             // Draw background
-                        //             im.DrawList_AddRectFilled(
-                        //                 draw_list,
-                        //                 pos + {0, cell_padding},
-                        //                 pos + size,
-                        //                 im.GetColorU32(im.Col.TableRowBg),
-                        //             )
-                        //
-                        //             // Draw vertical bar
-                        //             bar_pos := pos + {
-                        //                 (size.x - bar_width) / 2,  // Center horizontally
-                        //                 size.y - bar_height - cell_padding, // Align to bottom,
-                        //             }
-                        //
-                        //             im.DrawList_AddLine(
-                        //                 draw_list,
-                        //                 (size.x - bar_width) / 2,  // Center horizontally
-                        //                 size.y - bar_height - cell_padding, // Align to bottom,
-                        //                 // im.Vec2{value, cast(f32)row},
-                        //                 // im.Vec2{value_2, cast(f32)row+1},
-                        //                 1,
-                        //                 1,
-                        //
-                        //             )
-                        //
-                        //             im.DrawList_AddRectFilled(
-                        //                 draw_list,
-                        //                 bar_pos,
-                        //                 bar_pos + {bar_width, bar_height},
-                        //                 im.GetColorU32(im.Col.PlotLines),
-                        //             )
-                        //
-                        //             // // Draw value text
-                        //             // if bar_height > 15 {
-                        //             //     text_pos := bar_pos + {2, bar_height - 15}
-                        //             //     im.DrawList_AddText(
-                        //             //         draw_list,
-                        //             //         text_pos,
-                        //             //         im.GetColorU32(im.Col.Text),
-                        //             //         strings.unsafe_string_to_cstring(fmt.tprintf("%.2f", value)),
-                        //             //     )
-                        //             // }
-                        //         }
-                        //     }
-                        // }
-                        im.EndTabItem()
-                    }
-
                 }
 
                 im.Separator()
@@ -439,28 +286,45 @@ main :: proc() {
                     fmt.tprintf("Failed to parse the data, err: %#v", parsed_ok.(ls.ParseHeaderError).message)))
                 im.Text(strings.unsafe_string_to_cstring(
                     fmt.tprintf("Failed to parse the data, err: %#v", parsed_ok)))
+            }
+        }
+
+        if loaded {
+            n_rows    := las_file.log_data.nrows
+            depth_log := las_file.log_data.logs[0]
+            some_log  := las_file.log_data.logs[3]
+            some_log2  := las_file.log_data.logs[6]
+
+            for idx in 1..<(n_rows) {
+                {
+                    pos_back := rl.Vector2{40*cast(f32)some_log[idx-1]+200, 0.5*cast(f32)depth_log[idx-1]-1500}
+                    pos_forw := rl.Vector2{40*cast(f32)some_log[idx]+200,   0.5*cast(f32)depth_log[idx]-1500}
+
+                    rl.DrawLineEx(pos_back, pos_forw, 10, rl.BLUE)
+                }
+                {
+                    pos_back := rl.Vector2{cast(f32)some_log2[idx-1]+200, 0.5*cast(f32)depth_log[idx-1]-1500}
+                    pos_forw := rl.Vector2{cast(f32)some_log2[idx]+200,   0.5*cast(f32)depth_log[idx]-1500}
+
+                    rl.DrawLineEx(pos_back, pos_forw, 10, rl.GREEN)
+                }
 
             }
 
+                // rl.GuiPanel({
+                //     200, 200,
+                //     200, 200,
+                // }, "Panel",)
+                // rl.GuiGrid({
+                //     200, 200,
+                //     200, 200,
+                // }, "Grid", 100, 100, nil)
 
         }
-
-        // las_panel.rendered += 1
 
         im.Render()
-        display_w, display_h := glfw.GetFramebufferSize(window)
-        gl.Viewport(0, 0, display_w, display_h)
-        gl.ClearColor(0, 0, 0, 1)
-        gl.Clear(gl.COLOR_BUFFER_BIT)
-        imgui_impl_opengl3.RenderDrawData(im.GetDrawData())
+        imrl.render_draw_data(im.GetDrawData())
 
-        when !DISABLE_DOCKING {
-            backup_current_window := glfw.GetCurrentContext()
-            im.UpdatePlatformWindows()
-            im.RenderPlatformWindowsDefault()
-            glfw.MakeContextCurrent(backup_current_window)
-        }
-
-        glfw.SwapBuffers(window)
+        rl.EndDrawing()
     }
 }
